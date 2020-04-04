@@ -238,7 +238,7 @@ class SelfTransformerDecoder(FairseqIncrementalDecoder):
     """
 
     def __init__(self, args, dictionary, embed_tokens, embed_scale=None, no_encoder_attn=False, left_pad=False,
-                 final_norm=True):
+                 final_norm=True, remove_head=False):
         super().__init__(dictionary)
         self.dropout = args.dropout
         self.share_input_output_embed = args.share_decoder_input_output_embed
@@ -272,7 +272,9 @@ class SelfTransformerDecoder(FairseqIncrementalDecoder):
         self.project_out_dim = nn.Linear(self.embed_dim, output_embed_dim, bias=False) \
             if self.embed_dim != output_embed_dim and not args.tie_adaptive_weights else None
 
-        self.load_softmax = not getattr(args, 'remove_head', False)
+        #self.load_softmax = not getattr(args, 'remove_head', False)
+        self.load_softmax = not remove_head
+
 
         if self.load_softmax:
             if args.adaptive_softmax_cutoff is not None:
@@ -548,7 +550,10 @@ class TransformerEncoder(FairseqEncoder):
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
         encoder_padding_mask = torch.cat([encoder_padding_mask.new(src_tokens.size(0), 1).fill_(0), encoder_padding_mask], dim=1)
-        if not encoder_padding_mask.any():
+        
+        # 只要有一个为True，这里就是 True, 这里的意义就是整个batch中没有一个pad是，就不需要mask了
+        if not encoder_padding_mask.any():   
+            print("Right here, encoder_padding_mask is None")
             encoder_padding_mask = None
 
         # encoder layers

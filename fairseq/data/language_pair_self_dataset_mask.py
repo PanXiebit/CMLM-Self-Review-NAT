@@ -43,7 +43,8 @@ def collate(
             'src_lengths': torch.LongTensor([
                 s['enc_source'].numel() for s in samples
             ]),
-            'prev_output_tokens': merge('dec_source')
+            'prev_output_tokens': merge('dec_source'),
+            'real_target': merge('real_target')
         },
         'target': merge('dec_target', is_target_list),
         'nsentences': samples[0]['enc_source'].size(0),
@@ -149,8 +150,9 @@ class LanguagePairSelfDatasetMask(FairseqDataset):
         self.seed = seed
 
     def __getitem__(self, index):
-        enc_source, dec_source, dec_target, ntokens = self._make_source_target(self.src[index], self.tgt[index])
-        return {'id': index, 'enc_source': enc_source, 'dec_source': dec_source, 'dec_target': dec_target, 'ntokens': ntokens}
+        enc_source, dec_source, dec_target, real_target, ntokens = self._make_source_target(self.src[index], self.tgt[index])
+        return {'id': index, 'enc_source': enc_source, 'dec_source': dec_source, 
+                'dec_target': dec_target, 'real_target': real_target,'ntokens': ntokens}
 
     def __len__(self):
         return len(self.src)
@@ -186,11 +188,12 @@ class LanguagePairSelfDatasetMask(FairseqDataset):
             dec_source[:] = self.tgt_dict.mask()
 
         ntokens = dec_target.ne(self.tgt_dict.pad()).sum(-1).item()
+        real_target = dec_target_cp
         #print ("masked tokens", self.tgt_dict.string(dec_source))
         #print ("original tokens", self.tgt_dict.string(dec_target))
         #print ("source tokens", self.src_dict.string(enc_source))
 
-        return enc_source, dec_source, dec_target, ntokens
+        return enc_source, dec_source, dec_target, real_target, ntokens
 
     def collater(self, samples):
         """Merge a list of samples to form a mini-batch.

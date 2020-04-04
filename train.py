@@ -21,6 +21,10 @@ from fairseq.data import iterators
 from fairseq.trainer import Trainer
 from fairseq.meters import AverageMeter, StopwatchMeter
 
+# import logging
+
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# logger = logging.getLogger(__name__)
 
 def main(args, init_distributed=False):
     utils.import_user_module(args)
@@ -48,7 +52,7 @@ def main(args, init_distributed=False):
     # Build model and criterion
     model = task.build_model(args)
     criterion = task.build_criterion(args)
-    print(model)
+    #print(model)
     print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
     print('| num. model params: {} (num. trained: {})'.format(
         sum(p.numel() for p in model.parameters()),
@@ -118,6 +122,9 @@ def train(args, trainer, task, epoch_itr):
     valid_subsets = args.valid_subset.split(',')
     max_update = args.max_update or math.inf
     for i, samples in enumerate(progress, start=epoch_itr.iterations_in_epoch):
+#         sample =  samples[0]
+#         print(sample["net_input"].keys(), len(samples))
+#         exit()
         log_output = trainer.train_step(samples)
         if log_output is None:
             continue

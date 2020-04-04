@@ -14,6 +14,7 @@ from typing import Dict, List, Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 
 from fairseq import utils
 from fairseq.data import Dictionary
@@ -436,3 +437,101 @@ class FairseqEncoderModel(BaseFairseqModel):
     def max_positions(self):
         """Maximum length supported by the model."""
         return self.encoder.max_positions()
+
+    
+    
+class FairseqEncoderDecoderGanModel(BaseFairseqModel):
+    """Base class for encoder-decoder models.
+
+    Args:
+        encoder (FairseqEncoder): the encoder
+        decoder (FairseqDecoder): the decoder
+    """
+
+    def __init__(self, args, encoder, decoder, decoder_embed_tokens, tgt_dict):
+        super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+        self.decoder_embed_tokens = decoder_embed_tokens
+        self.tgt_dict = tgt_dict
+        self.decoder_embed_dim = args.decoder_embed_dim
+        assert isinstance(self.encoder, FairseqEncoder)
+        assert isinstance(self.decoder, FairseqDecoder)
+        
+        self.dis_decoder_head = nn.Linear(self.decoder_embed_dim, 1)
+        
+        self.temperature = 1.0
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, src_tokens, src_lengths, prev_output_tokens, real_target, **kwargs):
+        """
+        Run the forward pass for an encoder-decoder model.
+
+        First feed a batch of source tokens through the encoder. Then, feed the
+        encoder output and previous decoder outputs (i.e., input feeding/teacher
+        forcing) to the decoder to produce the next outputs::
+
+            encoder_out = self.encoder(src_tokens, src_lengths)
+            return self.decoder(prev_output_tokens, encoder_out)
+
+        Args:
+            src_tokens (LongTensor): tokens in the source language of shape
+                `(batch, src_len)`
+            src_lengths (LongTensor): source sentence lengths of shape `(batch)`
+            prev_output_tokens (LongTensor): previous decoder outputs of shape
+                `(batch, tgt_len)`, for input feeding/teacher forcing
+
+        Returns:
+            tuple:
+                - the decoder's output of shape `(batch, tgt_len, vocab)`
+                - a dictionary with any model-specific outputs
+        """
+        # generator
+        encoder_out = self.encoder(src_tokens, src_lengths=src_lengths, **kwargs)
+        gen_decoder_out = self.decoder(prev_output_tokens, encoder_out=encoder_out, **kwargs)
+        
+        #  x, {'attn': attn, 'inner_states': inner_states, 'predicted_lengths': encoder_out['predicted_lengths']}
+        # default: sharing input and output embedding
+        gen_dec_logits = F.linear(gen_decoder_out[0], self.decoder_embed_tokens.weight)
+        
+        # discriminator
+        fake_data = self._get_fake_data(prev_output_tokens, real_target, gen_dec_logits, self.temperature)
+        fake_data = Variable(fake_data, requires_grad=False)
+        
+        dis_decoder_out = self.decoder(fake_data, encoder_out=encoder_out, **kwargs)
+        dis_dec_logits=  self.dis_decoder_head(dis_decoder_out[0])
+        return gen_dec_logits, dis_dec_logits, encoder_out['predicted_lengths'], fake_data, gen_decoder_out[1]["attn"], dis_decoder_out[1]["attn"]
+
+    def _get_fake_data(self, tgt_source, real_target, gen_dec_logits, temperature):
+        uniform_noise = torch.rand(*gen_dec_logits.size()).to(self.device)
+        gumbel_noise = -torch.log(-torch.log(uniform_noise + 1e-9) + 1e-9).to(self.device)
+        sample_tokens = torch.argmax(F.softmax(gen_dec_logits / temperature + gumbel_noise, dim=-1), dim=-1)
+
+        non_masked_ids = tgt_source.ne(self.tgt_dict.mask())
+        sample_tokens[non_masked_ids] = real_target[non_masked_ids]
+        return sample_tokens
+
+    def extract_features(self, src_tokens, src_lengths, prev_output_tokens, **kwargs):
+        """
+        Similar to *forward* but only return features.
+
+        Returns:
+            tuple:
+                - the decoder's features of shape `(batch, tgt_len, embed_dim)`
+                - a dictionary with any model-specific outputs
+        """
+        encoder_out = self.encoder(src_tokens, src_lengths=src_lengths, **kwargs)
+        features = self.decoder.extract_features(prev_output_tokens, encoder_out=encoder_out, **kwargs)
+        return features
+
+    def output_layer(self, features, **kwargs):
+        """Project features to the default output size (typically vocabulary size)."""
+        return self.decoder.output_layer(features, **kwargs)
+
+    def max_positions(self):
+        """Maximum length supported by the model."""
+        return (self.encoder.max_positions(), self.decoder.max_positions())
+
+    def max_decoder_positions(self):
+        """Maximum length supported by the decoder."""
+        return self.decoder.max_positions()
