@@ -553,7 +553,7 @@ class TransformerEncoder(FairseqEncoder):
         
         # 只要有一个为True，这里就是 True, 这里的意义就是整个batch中没有一个pad是，就不需要mask了
         if not encoder_padding_mask.any():   
-            print("Right here, encoder_padding_mask is None")
+            # print("Right here, encoder_padding_mask is None")
             encoder_padding_mask = None
 
         # encoder layers

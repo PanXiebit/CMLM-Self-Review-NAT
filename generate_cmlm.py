@@ -50,7 +50,8 @@ def main(args):
     print('| loading model(s) from {}'.format(args.path))
     models, _ = utils.load_ensemble_for_inference(args.path.split(':'), task, model_arg_overrides=eval(args.model_overrides))
     models = [model.cuda() for model in models]
-
+    # print(len(models), models[0])
+    # exit()
     # Optimize ensemble for generation
     for model in models:
         model.make_generation_fast_(
@@ -166,7 +167,7 @@ def generate_batched_itr(data_itr, strategy, models, tgt_dict, length_beam_size=
         # separately, but SequenceGenerator directly calls model.encoder
         encoder_input = {
             k: v for k, v in input.items()
-            if k != 'prev_output_tokens'
+            if k != 'prev_output_tokens' and k!= 'real_target'
         }
         
         with torch.no_grad():

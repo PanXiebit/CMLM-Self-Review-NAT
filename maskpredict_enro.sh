@@ -63,4 +63,5 @@ python train.py ${output_dir}/data-bin \
     --max-update 300000 \
     --seed 0 \
     --save-dir ${model_dir} \
-    --dis_weights 5.0 #> train-log 2>&1 &
+    --dis_weights 5.0\
+    --restore-file checkpoint_best.pt #> train-log 2>&1 &

@@ -16,7 +16,7 @@ def duplicate_encoder_out(encoder_out, bsz, beam_size):
 
 
 def generate_step_with_prob(out):
-    probs = F.softmax(out[0], dim=-1)
+    probs = F.softmax(out, dim=-1)
     max_probs, idx = probs.max(dim=-1)
     return idx, max_probs, probs
 

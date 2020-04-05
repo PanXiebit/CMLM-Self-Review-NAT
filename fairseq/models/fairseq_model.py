@@ -488,10 +488,14 @@ class FairseqEncoderDecoderGanModel(BaseFairseqModel):
         """
         # generator
         encoder_out = self.encoder(src_tokens, src_lengths=src_lengths, **kwargs)
-        gen_decoder_out = self.decoder(prev_output_tokens, encoder_out=encoder_out, **kwargs)
+        # {'encoder_out': x,  # T x B x C
+        #  'encoder_padding_mask': encoder_padding_mask,  # B x T
+        #  'predicted_lengths': predicted_lengths, # B x L}
         
+        gen_decoder_out = self.decoder(prev_output_tokens, encoder_out=encoder_out, **kwargs)
         #  x, {'attn': attn, 'inner_states': inner_states, 'predicted_lengths': encoder_out['predicted_lengths']}
         # default: sharing input and output embedding
+        
         gen_dec_logits = F.linear(gen_decoder_out[0], self.decoder_embed_tokens.weight)
         
         # discriminator

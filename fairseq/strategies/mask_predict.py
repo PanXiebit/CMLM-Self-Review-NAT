@@ -6,7 +6,7 @@
 # can be found in the PATENTS file in the same directory.
 
 import torch
-
+import torch.nn.functional as F
 from . import DecodingStrategy, register_strategy
 from .strategy_utils import generate_step_with_prob, assign_single_value_long, assign_single_value_byte, assign_multi_value_long, convert_tokens
 
@@ -40,8 +40,9 @@ class MaskPredict(DecodingStrategy):
 
             #print("Step: ", counter+1)
             #print("Masking: ", convert_tokens(tgt_dict, tgt_tokens[0]))
-            decoder_out = model.decoder(tgt_tokens, encoder_out)
-            new_tgt_tokens, new_token_probs, all_token_probs = generate_step_with_prob(decoder_out)
+            gen_decoder_out = model.decoder(tgt_tokens, encoder_out)
+            gen_dec_logits = F.linear(gen_decoder_out[0], model.decoder_embed_tokens.weight)
+            new_tgt_tokens, new_token_probs, all_token_probs = generate_step_with_prob(gen_dec_logits)
             
             assign_multi_value_long(token_probs, mask_ind, new_token_probs)
             assign_single_value_byte(token_probs, pad_mask, 1.0)
@@ -54,8 +55,14 @@ class MaskPredict(DecodingStrategy):
         return tgt_tokens, lprobs
     
     def generate_non_autoregressive(self, model, encoder_out, tgt_tokens):
-        decoder_out = model.decoder(tgt_tokens, encoder_out)
-        tgt_tokens, token_probs, _ = generate_step_with_prob(decoder_out)
+        gen_decoder_out = model.decoder(tgt_tokens, encoder_out)
+        # x, {'attn': attn, 'inner_states': inner_states, 'predicted_lengths': encoder_out['predicted_lengths']} 
+        # print(decoder_out[0].shape)  # [batch, max_len, decoder_emb_dim]
+        
+        gen_dec_logits = F.linear(gen_decoder_out[0], model.decoder_embed_tokens.weight)
+        # print(gen_dec_logits.shape)  # [batch, max_len, decoder_outuput_dim]
+
+        tgt_tokens, token_probs, _ = generate_step_with_prob(gen_dec_logits)
         return tgt_tokens, token_probs
 
     def select_worst(self, token_probs, num_mask):
