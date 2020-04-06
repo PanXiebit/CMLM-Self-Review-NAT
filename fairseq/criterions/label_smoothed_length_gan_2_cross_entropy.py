@@ -17,14 +17,15 @@ from fairseq import utils
 from . import FairseqCriterion, register_criterion
 
 
-@register_criterion('label_smoothed_length_gan_1_cross_entropy')
-class LabelSmoothedLengthGan_1_CrossEntropyCriterion(FairseqCriterion):
+@register_criterion('label_smoothed_length_gan_cross_entropy')
+class LabelSmoothedLengthGanCrossEntropyCriterion(FairseqCriterion):
 
     def __init__(self, args, task):
         super().__init__(args, task)
         self.eps = args.label_smoothing
         self.gen_weights = args.gen_weights
         self.dis_weights = args.dis_weights
+        self.neg_weights = args.neg_weights
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.bce_loss = nn.BCELoss(reduction="none")
 
@@ -37,6 +38,11 @@ class LabelSmoothedLengthGan_1_CrossEntropyCriterion(FairseqCriterion):
                             help='epsilon for label smoothing, 0 means no label smoothing')
         parser.add_argument('--dis_weights', default=5., type=float, metavar='D',
                             help='epsilon for label smoothing, 0 means no label smoothing')
+        parser.add_argument('--neg_weights', default=0.1, type=float, metavar='D',
+                            help='epsilon for label smoothing, 0 means no label smoothing')
+        parser.add_argument('--pos_weights', default=5.0, type=float, metavar='D',
+                            help='epsilon for label smoothing, 0 means no label smoothing')
+        
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
@@ -81,10 +87,27 @@ class LabelSmoothedLengthGan_1_CrossEntropyCriterion(FairseqCriterion):
         length_loss = -length_lprobs.gather(dim=-1, index=length_target)
         
         # discriminator loss
-        dis_label = net_output[3].eq(sample['net_input']['real_target']).type(torch.FloatTensor).to(self.device)  # [batch, tgt_len]
-        dis_loss = self.bce_loss(torch.sigmoid(net_output[1].squeeze()), dis_label)
-        dis_loss = dis_loss.view(-1, 1)[non_pad_mask]  # [batch_size, tgt_len]
-
+#         dis_label_1 = net_output[3].eq(sample['net_input']['real_target']).type(torch.FloatTensor).to(self.device)  # [batch, tgt_len]
+#         dis_loss_1 = self.bce_loss(torch.sigmoid(net_output[1].squeeze()), dis_label_1)
+#         dis_loss_1 = dis_loss_1.view(-1, 1)[non_pad_mask]  # [batch_size, tgt_len]
+#         print("\n dis_label_1", dis_label_1.view(-1, 1)[non_pad_mask].sum())
+#         print("\ndis_loss_1", dis_loss_1.sum())
+        
+        fake_data = net_output[3]
+        real_target = sample['net_input']['real_target']
+        bs, tgt_len = fake_data.size()
+        fake_data = fake_data.unsqueeze(-1).repeat([1, 1, tgt_len])   # [batch, tgt_len, tgt_len]
+        real_target = real_target.unsqueeze(1).repeat([1,tgt_len,1])  # [batch, tgt_len, tgt_len]
+        weights = torch.eye(tgt_len,tgt_len).unsqueeze(0).repeat([bs, 1, 1])
+        weights =  weights + (weights - 1) * 0.2 # self.pos_weights *
+        dis_label = fake_data.eq(real_target) * weights.to(self.device)
+        dis_label = dis_label.sum(-1)   # [batch, tgt_len]
+        
+        dis_loss = self.bce_loss(torch.sigmoid(net_output[1].squeeze()), dis_label)    # [batch, tgt_len]
+        dis_loss = dis_loss.view(-1, 1)[non_pad_mask]
+#         print("\n dis_label", dis_label.view(-1, 1)[non_pad_mask].sum())
+#         print("\ndis_loss\n", dis_loss.sum())
+        
         
         if reduce:
             nll_loss = nll_loss.sum()
@@ -94,10 +117,10 @@ class LabelSmoothedLengthGan_1_CrossEntropyCriterion(FairseqCriterion):
         eps_i = self.eps / lprobs.size(-1)
         loss = self.gen_weights * ((1. - self.eps) * nll_loss + eps_i * smooth_loss) + length_loss + self.dis_weights * dis_loss
         ntokens = non_pad_mask.sum().data.item()
-        # print(((1. - self.eps) * nll_loss + eps_i * smooth_loss)/ ntokens)
-        # print(length_loss / ntokens)
-        # print(self.dis_weights * dis_loss / ntokens)
-        # print(loss / ntokens / math.log(2))
+#         print(((1. - self.eps) * nll_loss + eps_i * smooth_loss)/ ntokens)
+#         print(length_loss / ntokens)
+#         print(self.dis_weights * dis_loss / ntokens)
+#         print(loss / ntokens / math.log(2))
         return loss, nll_loss, length_loss, dis_loss, non_pad_mask.sum().data.item()
 
     @staticmethod
