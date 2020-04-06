@@ -136,7 +136,7 @@ def main(args):
                                 # Convert back to tokens for evaluation with unk replacement and/or without BPE
                                 target_tokens = tgt_dict.encode_line(target_str, add_if_not_exist=True)
                             
-                            #hypo_str = deduplicate(hypo_str)
+                            hypo_str = deduplicate(hypo_str)
                             print()
                             
                             results.append((target_str, hypo_str))

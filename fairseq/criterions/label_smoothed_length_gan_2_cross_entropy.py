@@ -17,8 +17,8 @@ from fairseq import utils
 from . import FairseqCriterion, register_criterion
 
 
-@register_criterion('label_smoothed_length_gan_cross_entropy')
-class LabelSmoothedLengthGanCrossEntropyCriterion(FairseqCriterion):
+@register_criterion('label_smoothed_length_gan_2_cross_entropy')
+class LabelSmoothedLengthGan_2_CrossEntropyCriterion(FairseqCriterion):
 
     def __init__(self, args, task):
         super().__init__(args, task)
@@ -40,7 +40,7 @@ class LabelSmoothedLengthGanCrossEntropyCriterion(FairseqCriterion):
                             help='epsilon for label smoothing, 0 means no label smoothing')
         parser.add_argument('--neg_weights', default=0.1, type=float, metavar='D',
                             help='epsilon for label smoothing, 0 means no label smoothing')
-        parser.add_argument('--pos_weights', default=5.0, type=float, metavar='D',
+        parser.add_argument('--pos_weights', default=1.0, type=float, metavar='D',
                             help='epsilon for label smoothing, 0 means no label smoothing')
         
 
@@ -99,7 +99,7 @@ class LabelSmoothedLengthGanCrossEntropyCriterion(FairseqCriterion):
         fake_data = fake_data.unsqueeze(-1).repeat([1, 1, tgt_len])   # [batch, tgt_len, tgt_len]
         real_target = real_target.unsqueeze(1).repeat([1,tgt_len,1])  # [batch, tgt_len, tgt_len]
         weights = torch.eye(tgt_len,tgt_len).unsqueeze(0).repeat([bs, 1, 1])
-        weights =  weights + (weights - 1) * 0.2 # self.pos_weights *
+        weights =  weights + (weights - 1) * self.neg_weights
         dis_label = fake_data.eq(real_target) * weights.to(self.device)
         dis_label = dis_label.sum(-1)   # [batch, tgt_len]
         
