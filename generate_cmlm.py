@@ -128,14 +128,17 @@ def main(args):
                                 sample_id,
                                 ' '.join(map(lambda x: str(utils.item(x)), alignment))
                             ))
-                        print()
+                        
                         
                         # Score only the top hypothesis
                         if has_target:
                             if align_dict is not None or args.remove_bpe is not None:
                                 # Convert back to tokens for evaluation with unk replacement and/or without BPE
                                 target_tokens = tgt_dict.encode_line(target_str, add_if_not_exist=True)
-
+                            
+                            #hypo_str = deduplicate(hypo_str)
+                            print()
+                            
                             results.append((target_str, hypo_str))
 
                     num_sentences += 1
@@ -149,6 +152,18 @@ def main(args):
 def dehyphenate(sent):
     return re.sub(r'(\S)-(\S)', r'\1 ##AT##-##AT## \2', sent).replace('##AT##', '@')
 
+def deduplicate(sent):
+    sent = sent.strip().split(" ")
+    new_sent = [sent[0]]
+    dup_cnt = 0
+    for i in range(1, len(sent)):
+        if sent[i] != new_sent[-1]:
+            new_sent.append(sent[i])
+        else:
+            dup_cnt += 1
+    print("duplicated word number {}".format(dup_cnt))
+    return " ".join(new_sent)
+        
 
 def generate_batched_itr(data_itr, strategy, models, tgt_dict, length_beam_size=None, use_gold_target_len=False, cuda=True):
     """Iterate over a batched dataset and yield individual translations.
