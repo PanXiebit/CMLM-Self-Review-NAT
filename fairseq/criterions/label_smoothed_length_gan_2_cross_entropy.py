@@ -38,7 +38,7 @@ class LabelSmoothedLengthGan_2_CrossEntropyCriterion(FairseqCriterion):
                             help='epsilon for label smoothing, 0 means no label smoothing')
         parser.add_argument('--dis_weights', default=5., type=float, metavar='D',
                             help='epsilon for label smoothing, 0 means no label smoothing')
-        parser.add_argument('--neg_weights', default=0.1, type=float, metavar='D',
+        parser.add_argument('--neg_weights', default=0.2, type=float, metavar='D',
                             help='epsilon for label smoothing, 0 means no label smoothing')
         parser.add_argument('--pos_weights', default=1.0, type=float, metavar='D',
                             help='epsilon for label smoothing, 0 means no label smoothing')
@@ -98,13 +98,16 @@ class LabelSmoothedLengthGan_2_CrossEntropyCriterion(FairseqCriterion):
         bs, tgt_len = fake_data.size()
         fake_data = fake_data.unsqueeze(-1).repeat([1, 1, tgt_len])   # [batch, tgt_len, tgt_len]
         real_target = real_target.unsqueeze(1).repeat([1,tgt_len,1])  # [batch, tgt_len, tgt_len]
-        weights = torch.eye(tgt_len,tgt_len).unsqueeze(0).repeat([bs, 1, 1])
-        weights =  weights + (weights - 1) * self.neg_weights
-        dis_label = fake_data.eq(real_target) * weights.to(self.device)
-        dis_label = dis_label.sum(-1)   # [batch, tgt_len]
+        pos_weights = torch.eye(tgt_len,tgt_len).unsqueeze(0).repeat([bs, 1, 1]).to(self.device)
+        neg_weights = (1- pos_weights).to(self.device)
+        dis_label = fake_data.eq(real_target) # * weights.to(self.device)
+        pos_label = (dis_label * pos_weights).sum(-1)   # [batch, tgt_len]
+        neg_label = (dis_label * neg_weights).sum(-1)
         
-        dis_loss = self.bce_loss(torch.sigmoid(net_output[1].squeeze()), dis_label)    # [batch, tgt_len]
-        dis_loss = dis_loss.view(-1, 1)[non_pad_mask]
+        pos_loss = self.bce_loss(torch.sigmoid(net_output[1].squeeze()), pos_label) * pos_label    # [batch, tgt_len]
+        neg_loss = -torch.log(1- torch.sigmoid(net_output[1].squeeze())) * neg_label.to(self.device)
+        dis_loss = (pos_loss + neg_loss).view(-1, 1)[non_pad_mask]
+        
 #         print("\n dis_label", dis_label.view(-1, 1)[non_pad_mask].sum())
 #         print("\ndis_loss\n", dis_loss.sum())
         
