@@ -19,6 +19,8 @@ from fairseq.meters import TimeMeter
 from fairseq.strategies.strategy_utils import duplicate_encoder_out
 
 
+
+
 def main(args):
     assert args.path is not None, '--path required for generation!'
     assert not args.sampling or args.nbest == args.beam, \
@@ -85,7 +87,8 @@ def main(args):
     num_sentences = 0
     has_target = True
     timer = TimeMeter()
-
+    dup_cnt = 0
+    
     with progress_bar.build_progress_bar(args, itr) as t:
 
         translations = generate_batched_itr(t, strategy, models, tgt_dict, length_beam_size=args.length_beam, use_gold_target_len=args.gold_target_len)
@@ -136,7 +139,7 @@ def main(args):
                                 # Convert back to tokens for evaluation with unk replacement and/or without BPE
                                 target_tokens = tgt_dict.encode_line(target_str, add_if_not_exist=True)
                             
-                            hypo_str = deduplicate(hypo_str)
+                            hypo_str, dup_cnt = deduplicate(hypo_str, dup_cnt)
                             print()
                             
                             results.append((target_str, hypo_str))
@@ -152,17 +155,17 @@ def main(args):
 def dehyphenate(sent):
     return re.sub(r'(\S)-(\S)', r'\1 ##AT##-##AT## \2', sent).replace('##AT##', '@')
 
-def deduplicate(sent):
+
+def deduplicate(sent, dup_cnt):
     sent = sent.strip().split(" ")
     new_sent = [sent[0]]
-    dup_cnt = 0
     for i in range(1, len(sent)):
         if sent[i] != new_sent[-1]:
             new_sent.append(sent[i])
         else:
             dup_cnt += 1
     print("duplicated word number {}".format(dup_cnt))
-    return " ".join(new_sent)
+    return " ".join(new_sent), dup_cnt 
         
 
 def generate_batched_itr(data_itr, strategy, models, tgt_dict, length_beam_size=None, use_gold_target_len=False, cuda=True):

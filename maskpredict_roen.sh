@@ -20,8 +20,8 @@
 
 text=data/wmt16.en-ro
 output_dir=output
-src=en
-tgt=ro
+src=ro
+tgt=en
 model_path=output
 # python preprocess.py \
 #     --source-lang ${src} \
@@ -64,4 +64,4 @@ python train.py ${output_dir}/data-bin \
    --seed 0 \
    --save-dir ${model_dir} \
    --dis_weights 5.0\
-   --restore-file checkpoint_haha.pt #> train-log 2>&1 &
+   --restore-file checkpoint_last.pt #> train-log 2>&1 &

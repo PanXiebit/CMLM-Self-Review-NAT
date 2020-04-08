@@ -25,9 +25,12 @@ class MaskPredict(DecodingStrategy):
         
         iterations = seq_len if self.iterations is None else self.iterations
         
-        tgt_tokens, token_probs = self.generate_non_autoregressive(model, encoder_out, tgt_tokens)
-        assign_single_value_byte(tgt_tokens, pad_mask, tgt_dict.pad())
-        assign_single_value_byte(token_probs, pad_mask, 1.0)
+        tgt_tokens, token_probs, probs = self.generate_non_autoregressive(model, encoder_out, tgt_tokens)
+        print(tgt_tokens.shape)
+        print(token_probs.shape)
+        print(probs.shape)
+        assign_single_value_byte(tgt_tokens, pad_mask, tgt_dict.pad())  # pad 部分转换为 pad()
+        assign_single_value_byte(token_probs, pad_mask, 1.0)   # pad 部分概率变为1， 以便后续计算整个sentence的概率
         #print("Initialization: ", convert_tokens(tgt_dict, tgt_tokens[0]))
         
         for counter in range(1, iterations):
@@ -51,7 +54,7 @@ class MaskPredict(DecodingStrategy):
             assign_single_value_byte(tgt_tokens, pad_mask, tgt_dict.pad())
             #print("Prediction: ", convert_tokens(tgt_dict, tgt_tokens[0]))
         
-        lprobs = token_probs.log().sum(-1)
+        lprobs = token_probs.log().sum(-1)  # 这里计算的是 log_prob 之和
         return tgt_tokens, lprobs
     
     def generate_non_autoregressive(self, model, encoder_out, tgt_tokens):
@@ -62,8 +65,8 @@ class MaskPredict(DecodingStrategy):
         gen_dec_logits = F.linear(gen_decoder_out[0], model.decoder_embed_tokens.weight)
         # print(gen_dec_logits.shape)  # [batch, max_len, decoder_outuput_dim]
 
-        tgt_tokens, token_probs, _ = generate_step_with_prob(gen_dec_logits)
-        return tgt_tokens, token_probs
+        tgt_tokens, token_probs, probs = generate_step_with_prob(gen_dec_logits)
+        return tgt_tokens, token_probs, probs
 
     def select_worst(self, token_probs, num_mask):
         bsz, seq_len = token_probs.size()

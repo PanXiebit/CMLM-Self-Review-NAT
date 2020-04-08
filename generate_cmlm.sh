@@ -11,5 +11,5 @@ python generate_cmlm.py ${output_dir}/data-bin \
     --task translation_self \
     --remove-bpe \
     --max-sentences 20 \
-    --decoding-iterations 15 \
+    --decoding-iterations 1 \
     --decoding-strategy mask_predict
