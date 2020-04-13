@@ -492,7 +492,7 @@ class FairseqEncoderDecoderGanModel(BaseFairseqModel):
         #  'encoder_padding_mask': encoder_padding_mask,  # B x T
         #  'predicted_lengths': predicted_lengths, # B x L}
         
-        gen_decoder_out = self.decoder(prev_output_tokens, encoder_out=encoder_out, **kwargs)
+        gen_decoder_out = self.decoder(prev_output_tokens, encoder_out=encoder_out, self_attn=False, **kwargs)
         #  x, {'attn': attn, 'inner_states': inner_states, 'predicted_lengths': encoder_out['predicted_lengths']}
         # default: sharing input and output embedding
         
@@ -502,7 +502,7 @@ class FairseqEncoderDecoderGanModel(BaseFairseqModel):
         fake_data = self._get_fake_data(prev_output_tokens, real_target, gen_dec_logits, self.temperature)
         fake_data = Variable(fake_data, requires_grad=False)
         
-        dis_decoder_out = self.decoder(fake_data, encoder_out=encoder_out, **kwargs)
+        dis_decoder_out = self.decoder(fake_data, encoder_out=encoder_out, self_attn=True, **kwargs)
         dis_dec_logits=  self.dis_decoder_head(dis_decoder_out[0])
         return gen_dec_logits, dis_dec_logits, encoder_out['predicted_lengths'], fake_data, gen_decoder_out[1]["attn"], dis_decoder_out[1]["attn"]
 

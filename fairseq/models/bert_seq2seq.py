@@ -295,7 +295,7 @@ class SelfTransformerDecoder(FairseqIncrementalDecoder):
         if self.normalize:
             self.layer_norm = BertLayerNorm(self.embed_dim)
 
-    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None):
+    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, self_atten=False):
         """
         Args:
             prev_output_tokens (LongTensor): previous decoder outputs of shape
@@ -314,11 +314,14 @@ class SelfTransformerDecoder(FairseqIncrementalDecoder):
         incremental_state=None
         
         decoder_padding_mask = prev_output_tokens.eq(self.padding_idx)
-        dim = prev_output_tokens.size(1)
-        self_attn_mask = torch.triu(
-                utils.fill_with_neg_inf(prev_output_tokens.new(dim, dim)), 1
-            )
-        self_attn_mask = self_attn_mask.to(prev_output_tokens)[:dim, :dim]
+        if self_atten:
+            dim = prev_output_tokens.size(1)
+            self_attn_mask = torch.triu(
+                    utils.fill_with_neg_inf(prev_output_tokens.new(dim, dim)), 1
+                )
+            self_attn_mask = self_attn_mask.to(prev_output_tokens)[:dim, :dim]
+        else:
+            self_attn_mask = None
         
         # embed positions
         positions = self.embed_positions(
@@ -339,24 +342,16 @@ class SelfTransformerDecoder(FairseqIncrementalDecoder):
         inner_states = [x]
 
         # decoder layers
-        for layer in self.layers[:-1]:
+        for layer in self.layers:
             x, attn = layer(
                 x,
                 encoder_out['encoder_out'] if encoder_out is not None else None,
                 encoder_out['encoder_padding_mask'] if encoder_out is not None else None,
                 decoder_padding_mask,
-                self_attn_mask=None
+                self_attn_mask=self_attn_mask
             )
             inner_states.append(x)
-        for layer in self.layers[-1:]:
-            x, attn = layer(
-                x,
-                encoder_out['encoder_out'] if encoder_out is not None else None,
-                encoder_out['encoder_padding_mask'] if encoder_out is not None else None,
-                decoder_padding_mask,
-                self_attn_mask=self_attn_mask,
-            )
-            inner_states.append(x)
+
         if self.normalize:
             x = self.layer_norm(x)
         # T x B x C -> B x T x C
