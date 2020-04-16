@@ -37,7 +37,7 @@ def main(args):
 
     # Load dataset splits
     task = tasks.setup_task(args)
-    task.load_dataset(args.visual_subset)
+    task.load_dataset(args.gen_subset)
     print('| {} {} {} examples'.format(args.data, args.gen_subset, len(task.dataset(args.gen_subset))))
 
     # Set dictionaries
@@ -53,14 +53,13 @@ def main(args):
     models, _ = utils.load_ensemble_for_inference(args.path.split(':'), task,
                                                   model_arg_overrides=eval(args.model_overrides))
     models = [model.cuda() for model in models]
-    # print(len(models), models[0])
-    # exit()
+#     print(len(models), models[0])
     # Optimize ensemble for generation
     for model in models:
-        model.make_generation_fast_(
-            beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
-            need_attn=args.print_alignment,
-        )
+#         model.make_generation_fast_(
+#             beamable_mm_beam_size=None if args.no_beamable_mm else args.beam,
+#             need_attn=args.print_alignment,
+#         )
         if args.fp16:
             model.half()
 
@@ -116,18 +115,23 @@ def visualizate(data_itr, models, tgt_dict, use_gold_target_len=False, cuda=True
         if 'net_input' not in s:
             continue
         input = s['net_input']
-
+        
+        if input['src_tokens'].size(1) < 10:
+            continue
         # model.forward normally channels prev_output_tokens into the decoder
         # separately, but SequenceGenerator directly calls model.encoder
         encoder_input = {
             k: v for k, v in input.items()
-            if k != 'prev_output_tokens' and k != 'real_target'
+            # if k != 'prev_output_tokens' and k != 'real_target'
         }
 
         with torch.no_grad():
             gold_target_len = s['target'].ne(tgt_dict.pad()).sum(-1) if use_gold_target_len else None
             hypos, gen_inner_state, gen_attention, dis_inner_state, dis_attention = generate(
                 encoder_input, models)
+            print(hypos.shape)
+            print(len(gen_inner_state))
+            print(gen_attention.shape)
             for batch in range(hypos.size(0)):
                 src = utils.strip_pad(input['src_tokens'][batch].data, tgt_dict.pad())
                 ref = utils.strip_pad(s['target'][batch].data, tgt_dict.pad()) if s['target'] is not None else None
@@ -135,11 +139,13 @@ def visualizate(data_itr, models, tgt_dict, use_gold_target_len=False, cuda=True
                 src_str = tgt_dict.string(src, args.remove_bpe)
                 hypo_str = tgt_dict.string(hypo, args.remove_bpe)
                 display_attention(src_str, hypo_str, gen_attention)
+        break
 
 
 def generate(encoder_input, models):
     assert len(models) == 1
     model = models[0]
+    model.eval()
     output = model(**encoder_input)
     # gen_dec_logits, dis_dec_logits, encoder_out['predicted_lengths'], fake_data, gen_decoder_out[1], dis_decoder_out[1]
 
@@ -157,20 +163,19 @@ def display_attention(sentence, translation, attention, n_heads=8, n_rows=4, n_c
 
     fig = plt.figure(figsize=(15, 25))
 
-    for i in range(n_heads):
-        ax = fig.add_subplot(n_rows, n_cols, i + 1)
+    #for i in range(n_heads):
+    ax = fig.add_subplot(n_rows, n_cols, 1)
 
-        _attention = attention.squeeze(0)[i].cpu().detach().numpy()
+    #_attention = attention.squeeze(0)[i].cpu().detach().numpy()
+    _attention = attention.squeeze(0).cpu().detach().numpy()
+    cax = ax.matshow(_attention, cmap='bone')
 
-        cax = ax.matshow(_attention, cmap='bone')
+    ax.tick_params(labelsize=12)
+    ax.set_xticklabels([''] + [t.lower() for t in sentence], rotation=45)
+    ax.set_yticklabels([''] + [t.lower() for t in translation])
 
-        ax.tick_params(labelsize=12)
-        ax.set_xticklabels([''] + ['<sos>'] + [t.lower() for t in sentence] + ['<eos>'],
-                           rotation=45)
-        ax.set_yticklabels([''] + translation)
-
-        ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
-        ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
 
     plt.show()
     plt.close()

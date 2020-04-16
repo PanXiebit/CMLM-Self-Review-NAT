@@ -39,7 +39,9 @@ class TranslationSelfTask(FairseqTask):
     @staticmethod
     def add_args(parser):
         """Add task-specific arguments to the parser."""
-        parser.add_argument('data', nargs='+', help='path(s) to data directorie(s)')
+        #parser.add_argument('data', nargs='+', help='path(s) to data directorie(s)')
+        parser.add_argument('--data', default=["output/data-bin"], help='path(s) to data directorie(s)')
+
         parser.add_argument('-s', '--source-lang', default=None, metavar='SRC',
                             help='source language')
         parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',

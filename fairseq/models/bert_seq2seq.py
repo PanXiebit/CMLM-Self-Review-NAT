@@ -295,7 +295,7 @@ class SelfTransformerDecoder(FairseqIncrementalDecoder):
         if self.normalize:
             self.layer_norm = BertLayerNorm(self.embed_dim)
 
-    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, self_atten=False):
+    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, self_attn=False):
         """
         Args:
             prev_output_tokens (LongTensor): previous decoder outputs of shape
@@ -314,7 +314,7 @@ class SelfTransformerDecoder(FairseqIncrementalDecoder):
         incremental_state=None
         
         decoder_padding_mask = prev_output_tokens.eq(self.padding_idx)
-        if self_atten:
+        if self_attn:
             dim = prev_output_tokens.size(1)
             self_attn_mask = torch.triu(
                     utils.fill_with_neg_inf(prev_output_tokens.new(dim, dim)), 1

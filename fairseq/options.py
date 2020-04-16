@@ -14,13 +14,13 @@ from fairseq import utils
 from fairseq.data.indexed_dataset import get_available_dataset_impl
 from fairseq.strategies import STRATEGY_REGISTRY
 
-def get_preprocessing_parser(default_task='translation'):
+def get_preprocessing_parser(default_task='translation_self'):
     parser = get_parser('Preprocessing', default_task)
     add_preprocess_args(parser)
     return parser
 
 
-def get_training_parser(default_task='translation'):
+def get_training_parser(default_task='translation_self'):
     parser = get_parser('Trainer', default_task)
     add_dataset_args(parser, train=True)
     add_distributed_training_args(parser)
@@ -30,7 +30,7 @@ def get_training_parser(default_task='translation'):
     return parser
 
 
-def get_generation_parser(interactive=False, default_task='translation'):
+def get_generation_parser(interactive=False, default_task='translation_self'):
     parser = get_parser('Generation', default_task)
     add_dataset_args(parser, gen=True)
     add_generation_args(parser)
@@ -89,7 +89,7 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False, suppress_def
             for k, v in vars(args).items()
             if v is not None
         })
-
+    
     from fairseq.models import ARCH_MODEL_REGISTRY, ARCH_CONFIG_REGISTRY
 
     # The parser doesn't know about model/criterion/optimizer-specific args, so
@@ -97,6 +97,8 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False, suppress_def
     # parse a second time after adding the *-specific arguments.
     # If input_args is given, we will parse those args instead of sys.argv.
     args, _ = parser.parse_known_args(input_args)
+    
+    
 
     # Add model-specific args to parser.
     if hasattr(args, 'arch'):
@@ -149,7 +151,7 @@ def parse_args_and_arch(parser, input_args=None, parse_known=False, suppress_def
         return args
 
 
-def get_parser(desc, default_task='translation'):
+def get_parser(desc, default_task='translation_self'):
     # Before creating the true parser, we need to import optional user module
     # in order to eagerly import custom tasks, optimizers, architectures, etc.
     usr_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
@@ -187,6 +189,8 @@ def get_parser(desc, default_task='translation'):
                         help='threshold FP16 loss scale from below')
     parser.add_argument('--user-dir', default=None,
                         help='path to a python module containing custom extensions (tasks and/or architectures)')
+    
+    parser.add_argument("-f", "--fff", help="a dummy argument to fool ipython", default="1")
 
     from fairseq.registry import REGISTRIES
     for registry_name, REGISTRY in REGISTRIES.items():
@@ -258,7 +262,7 @@ def add_dataset_args(parser, train=False, gen=False):
                        help='ignore too long or too short lines in valid and test set')
     group.add_argument('--max-tokens', type=int, metavar='N',
                        help='maximum number of tokens in a batch')
-    group.add_argument('--max-sentences', '--batch-size', type=int, metavar='N',
+    group.add_argument('--max-sentences', '--batch-size', type=int, metavar='N', default=1, 
                        help='maximum number of sentences in a batch')
     group.add_argument('--required-batch-size-multiple', default=8, type=int, metavar='N',
                        help='batch size will be a multiplier of this value')
@@ -402,9 +406,11 @@ def add_checkpoint_args(parser):
 
 def add_common_eval_args(group):
     # fmt: off
-    group.add_argument('--path', metavar='FILE',
+    group.add_argument('--path', metavar='FILE', default="output/my_maskPredict_en_ro/checkpoint37.pt", 
                        help='path(s) to model file(s), colon separated')
-    group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
+#     group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
+#                        help='remove BPE tokens before scoring (can be set to sentencepiece)')
+    group.add_argument('--remove-bpe', default='@@ ', type=str,
                        help='remove BPE tokens before scoring (can be set to sentencepiece)')
     group.add_argument('--quiet', action='store_true',
                        help='only print final scores')
