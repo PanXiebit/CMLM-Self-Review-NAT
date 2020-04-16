@@ -504,7 +504,11 @@ class FairseqEncoderDecoderGanModel(BaseFairseqModel):
         
         dis_decoder_out = self.decoder(fake_data, encoder_out=encoder_out, self_attn=True, **kwargs)
         dis_dec_logits=  self.dis_decoder_head(dis_decoder_out[0])
-        return gen_dec_logits, dis_dec_logits, encoder_out['predicted_lengths'], fake_data, gen_decoder_out[1]["attn"], dis_decoder_out[1]["attn"]
+        # return gen_dec_logits, dis_dec_logits, encoder_out['predicted_lengths'], fake_data, gen_decoder_out[1]["attn"], dis_decoder_out[1]["attn"]
+        return gen_dec_logits, dis_dec_logits, encoder_out['predicted_lengths'], fake_data, \
+               gen_decoder_out[1], dis_decoder_out[1]
+
+
 
     def _get_fake_data(self, tgt_source, real_target, gen_dec_logits, temperature):
         uniform_noise = torch.rand(*gen_dec_logits.size()).to(self.device)

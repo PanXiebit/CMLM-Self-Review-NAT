@@ -287,6 +287,8 @@ def add_dataset_args(parser, train=False, gen=False):
     if gen:
         group.add_argument('--gen-subset', default='test', metavar='SPLIT',
                            help='data subset to generate (train, valid, test)')
+        group.add_argument('--visual-subset', default='visual', metavar='SPLIT',
+                           help='data subset to generate (train, valid, test, visual)')
         group.add_argument('--num-shards', default=1, type=int, metavar='N',
                            help='shard generation over N shards')
         group.add_argument('--shard-id', default=0, type=int, metavar='ID',
