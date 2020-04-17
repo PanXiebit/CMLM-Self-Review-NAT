@@ -122,9 +122,8 @@ def train(args, trainer, task, epoch_itr):
     valid_subsets = args.valid_subset.split(',')
     max_update = args.max_update or math.inf
     for i, samples in enumerate(progress, start=epoch_itr.iterations_in_epoch):
-#         sample =  samples[0]
-#         print(sample["net_input"].keys(), len(samples))
-#         exit()
+        if i > 5:
+            break
         log_output = trainer.train_step(samples)
         if log_output is None:
             continue

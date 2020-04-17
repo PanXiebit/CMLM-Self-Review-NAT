@@ -448,16 +448,18 @@ class FairseqEncoderDecoderGanModel(BaseFairseqModel):
         decoder (FairseqDecoder): the decoder
     """
 
-    def __init__(self, args, encoder, decoder, decoder_embed_tokens, tgt_dict):
+    def __init__(self, args, encoder, g_decoder, d_decoder, decoder_embed_tokens, tgt_dict):
         super().__init__()
         self.encoder = encoder
-        self.decoder = decoder
+        self.g_decoder = g_decoder
+        self.d_decoder = d_decoder
         self.decoder_embed_tokens = decoder_embed_tokens
         self.tgt_dict = tgt_dict
         self.decoder_embed_dim = args.decoder_embed_dim
         assert isinstance(self.encoder, FairseqEncoder)
-        assert isinstance(self.decoder, FairseqDecoder)
-        
+        assert isinstance(self.g_decoder, FairseqDecoder)
+        assert isinstance(self.d_decoder, FairseqDecoder)
+
         self.dis_decoder_head = nn.Linear(self.decoder_embed_dim, 1)
         
         self.temperature = 1.0
@@ -492,7 +494,7 @@ class FairseqEncoderDecoderGanModel(BaseFairseqModel):
         #  'encoder_padding_mask': encoder_padding_mask,  # B x T
         #  'predicted_lengths': predicted_lengths, # B x L}
         
-        gen_decoder_out = self.decoder(prev_output_tokens, encoder_out=encoder_out, self_attn=False, **kwargs)
+        gen_decoder_out = self.g_decoder(prev_output_tokens, encoder_out=encoder_out, self_attn=False, **kwargs)
         #  x, {'attn': attn, 'inner_states': inner_states, 'predicted_lengths': encoder_out['predicted_lengths']}
         # default: sharing input and output embedding
         
@@ -501,10 +503,13 @@ class FairseqEncoderDecoderGanModel(BaseFairseqModel):
         # discriminator
         fake_data = self._get_fake_data(prev_output_tokens, real_target, gen_dec_logits, self.temperature)
         fake_data = Variable(fake_data, requires_grad=False)
+        #fake_data = torch.cat([fake_data.new(fake_data.size(0), 1).fill_(self.tgt_dict.bos()), fake_data], dim=1)
+        fake_data = torch.cat([src_tokens[:, 0].unsqueeze(1), fake_data], dim=1)
         
-        dis_decoder_out = self.decoder(fake_data, encoder_out=encoder_out, self_attn=True, **kwargs)
+        dis_decoder_out = self.d_decoder(fake_data, encoder_out=encoder_out, self_attn=True, **kwargs)
         dis_dec_logits=  self.dis_decoder_head(dis_decoder_out[0])
         # return gen_dec_logits, dis_dec_logits, encoder_out['predicted_lengths'], fake_data, gen_decoder_out[1]["attn"], dis_decoder_out[1]["attn"]
+        print("fake_data", fake_data.shape, dis_dec_logits.shape)
         return gen_dec_logits, dis_dec_logits, encoder_out['predicted_lengths'], fake_data, \
                gen_decoder_out[1], dis_decoder_out[1]
 
@@ -529,7 +534,7 @@ class FairseqEncoderDecoderGanModel(BaseFairseqModel):
                 - a dictionary with any model-specific outputs
         """
         encoder_out = self.encoder(src_tokens, src_lengths=src_lengths, **kwargs)
-        features = self.decoder.extract_features(prev_output_tokens, encoder_out=encoder_out, **kwargs)
+        features = self.g_decoder.extract_features(prev_output_tokens, encoder_out=encoder_out, **kwargs)
         return features
 
     def output_layer(self, features, **kwargs):
@@ -538,8 +543,20 @@ class FairseqEncoderDecoderGanModel(BaseFairseqModel):
 
     def max_positions(self):
         """Maximum length supported by the model."""
-        return (self.encoder.max_positions(), self.decoder.max_positions())
+        return (self.encoder.max_positions(), self.g_decoder.max_positions())
 
     def max_decoder_positions(self):
         """Maximum length supported by the decoder."""
         return self.decoder.max_positions()
+    
+    def get_normalized_probs(self, net_output, log_probs, sample=None):
+        """Get normalized probabilities (or log probs) from a net's output."""
+        if hasattr(self, 'g_decoder'):
+            return self.g_decoder.get_normalized_probs(net_output, log_probs, sample)
+        elif torch.is_tensor(net_output):
+            logits = net_output.float()
+            if log_probs:
+                return F.log_softmax(logits, dim=-1)
+            else:
+                return F.softmax(logits, dim=-1)
+        raise NotImplementedError

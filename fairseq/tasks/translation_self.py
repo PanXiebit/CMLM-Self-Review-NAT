@@ -40,7 +40,8 @@ class TranslationSelfTask(FairseqTask):
     def add_args(parser):
         """Add task-specific arguments to the parser."""
         #parser.add_argument('data', nargs='+', help='path(s) to data directorie(s)')
-        parser.add_argument('--data', default=["output/data-bin"], help='path(s) to data directorie(s)')
+        parser.add_argument('--data', default="output/data-bin", type=str,
+                            help='path(s) to data directorie(s)')
 
         parser.add_argument('-s', '--source-lang', default=None, metavar='SRC',
                             help='source language')
@@ -81,13 +82,13 @@ class TranslationSelfTask(FairseqTask):
 
         # find language pair automatically
         if args.source_lang is None or args.target_lang is None:
-            args.source_lang, args.target_lang = data_utils.infer_language_pair(args.data[0])
+            args.source_lang, args.target_lang = data_utils.infer_language_pair(args.data)
         if args.source_lang is None or args.target_lang is None:
             raise Exception('Could not infer language pair, please provide it explicitly')
 
         # load dictionaries
-        src_dict = Dictionary.load(os.path.join(args.data[0], 'dict.{}.txt'.format(args.source_lang)))
-        tgt_dict = Dictionary.load(os.path.join(args.data[0], 'dict.{}.txt'.format(args.target_lang)))
+        src_dict = Dictionary.load(os.path.join(args.data, 'dict.{}.txt'.format(args.source_lang)))
+        tgt_dict = Dictionary.load(os.path.join(args.data, 'dict.{}.txt'.format(args.target_lang)))
         assert src_dict.pad() == tgt_dict.pad()
         assert src_dict.eos() == tgt_dict.eos()
         assert src_dict.unk() == tgt_dict.unk()
@@ -121,7 +122,7 @@ class TranslationSelfTask(FairseqTask):
         src_datasets = []
         tgt_datasets = []
 
-        data_paths = self.args.data
+        data_paths = [self.args.data]
 
         for dk, data_path in enumerate(data_paths):
             for k in itertools.count():

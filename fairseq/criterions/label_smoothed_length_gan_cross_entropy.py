@@ -81,8 +81,12 @@ class LabelSmoothedLengthGan_CrossEntropyCriterion(FairseqCriterion):
         length_loss = -length_lprobs.gather(dim=-1, index=length_target)
         
         # discriminator loss
-        dis_label = net_output[3].eq(sample['net_input']['real_target']).type(torch.FloatTensor).to(self.device)  # [batch, tgt_len]
-        dis_loss = self.bce_loss(torch.sigmoid(net_output[1].squeeze()), dis_label)
+        fake_data = net_output[3]
+        real_target = sample['net_input']['real_target']
+        dis_label = fake_data[:, 1:].eq(real_target).type(torch.FloatTensor).to(self.device)
+        # dis_label = net_output[3].eq(sample['net_input']['real_target']).type(torch.FloatTensor).to(self.device)  # [batch, tgt_len]
+        dis_dec_logits = net_output[1].view(fake_data.size(0), -1)[:, 1:]
+        dis_loss = self.bce_loss(torch.sigmoid(dis_dec_logits), dis_label)
         dis_loss = dis_loss.view(-1, 1)[non_pad_mask]  # [batch_size, tgt_len]
 
         
