@@ -41,6 +41,7 @@ python train.py \
    --data "output/data-bin" \
    --arch bert_transformer_seq2seq_gan \
    --share-all-embeddings \
+   --sharing_gen_dis \
    --criterion label_smoothed_length_gan_cross_entropy \
    --label-smoothing 0.1 \
    --lr 5e-4 \

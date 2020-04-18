@@ -121,8 +121,12 @@ class Transformer_nonautoregressive_gan(FairseqEncoderDecoderGanModel):
 
 
         encoder = TransformerEncoder(args, src_dict, encoder_embed_tokens, args.encoder_embed_scale)
-        g_decoder = SelfTransformerDecoder(args, tgt_dict, decoder_embed_tokens, args.decoder_embed_scale, remove_head=True)
-        d_decoder = SelfTransformerDecoder(args, tgt_dict, decoder_embed_tokens, args.decoder_embed_scale, remove_head=True)
+        if not args.sharing_gen_dis:
+            g_decoder = SelfTransformerDecoder(args, tgt_dict, decoder_embed_tokens, args.decoder_embed_scale, remove_head=True)
+            d_decoder = SelfTransformerDecoder(args, tgt_dict, decoder_embed_tokens, args.decoder_embed_scale, remove_head=True)
+        else:
+            g_decoder = SelfTransformerDecoder(args, tgt_dict, decoder_embed_tokens, args.decoder_embed_scale, remove_head=True)
+            d_decoder = g_decoder
         return Transformer_nonautoregressive_gan(args, encoder, g_decoder, d_decoder, decoder_embed_tokens, tgt_dict)
 
     @staticmethod
@@ -179,6 +183,9 @@ class Transformer_nonautoregressive_gan(FairseqEncoderDecoderGanModel):
         parser.add_argument('--share_gen_dec_all_weights', action='store_true',
                             help='share generator, discriminator all weights'
                                  ' (requires shared dictionary and embed dim)')
+        # Right Here
+        parser.add_argument('--sharing_gen_dis', action='store_true',
+                            help='share generator, discriminator all weights')
         parser.add_argument('--share_gen_dec_encoder_weights', action='store_true',
                             help='share generator, discriminator all weights'
                                  ' (requires shared dictionary and embed dim)')
@@ -234,6 +241,9 @@ def base_architecture(args):
     args.share_all_embeddings = getattr(args, 'share_all_embeddings', False)
     args.share_gen_dec_embedding = getattr(args, 'share_gen_dec_embedding', False)
     args.share_gen_dec_all_weights = getattr(args, 'share_gen_dec_all_weights', False)
+    
+    
+    args.sharing_gen_dis = getattr(args, 'sharing_gen_dis', True)
     args.share_gen_dec_encoder_weights = getattr(args, 'share_gen_dec_encoder_weights', False)
     args.dis_weight = getattr(args, 'dis_weight', 50.0)
     args.temperature = getattr(args, 'temperature', 1.0)
