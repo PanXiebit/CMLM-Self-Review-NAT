@@ -15,23 +15,25 @@ from . import data_utils, FairseqDataset
 
 
 def collate(
-    samples, pad_idx, eos_idx, left_pad_source=True, left_pad_target=False,
-    input_feeding=True,
+    samples, pad_idx, eos_idx, bos_idx, left_pad_source=True, left_pad_target=False,
+    input_feeding=True, add_bos=True
 ):
     if len(samples) == 0:
         return {}
 
-    def merge(key, is_list=False):
+    def merge(key, is_list=False, add_bos=add_bos, is_decoder_src=False):
         if is_list:
             res = []
             for i in range(len(samples[0][key])):
                 res.append(data_utils.collate_tokens(
-                    [s[key][i] for s in samples], pad_idx, eos_idx, left_pad=False,
+                    [s[key][i] for s in samples], pad_idx, eos_idx, bos_idx, left_pad=False, 
+                    add_bos=add_bos, is_decoder_src=is_decoder_src
                 ))
             return res
         else:
             return data_utils.collate_tokens(
-                [s[key] for s in samples], pad_idx, eos_idx, left_pad=False,
+                [s[key] for s in samples], pad_idx, eos_idx, bos_idx, left_pad=False, 
+                add_bos=add_bos, is_decoder_src=is_decoder_src
             )
 
     is_target_list = isinstance(samples[0]['dec_target'], list)
@@ -39,14 +41,14 @@ def collate(
         'id': torch.LongTensor([s['id'] for s in samples]),
         'ntokens': sum(s['ntokens'] for s in samples),
         'net_input': {
-            'src_tokens': merge('enc_source'),
+            'src_tokens': merge('enc_source', add_bos=add_bos),
             'src_lengths': torch.LongTensor([
                 s['enc_source'].numel() for s in samples
             ]),
-            'prev_output_tokens': merge('dec_source'),
-            'real_target': merge('real_target')
+            'prev_output_tokens': merge('dec_source', add_bos=add_bos, is_decoder_src=True),
+            'real_target': merge('real_target', add_bos=False)
         },
-        'target': merge('dec_target', is_target_list),
+        'target': merge('dec_target', is_target_list, add_bos=False),
         'nsentences': samples[0]['enc_source'].size(0),
     }
 
@@ -117,8 +119,8 @@ class LanguagePairSelfDatasetMask(FairseqDataset):
 
     def __init__(
         self, src, src_sizes, src_dict,
-        tgt=None, tgt_sizes=None, tgt_dict=None,
-        left_pad_source=True, left_pad_target=False,
+        tgt=None, tgt_sizes=None, tgt_dict=None, 
+        left_pad_source=True, left_pad_target=False, add_bos=True,
         max_source_positions=2048, max_target_positions=2048,
         shuffle=True, input_feeding=True,
         dynamic_length=False,
@@ -148,6 +150,9 @@ class LanguagePairSelfDatasetMask(FairseqDataset):
         self.seed = seed
         self.random = np.random.RandomState(seed)
         self.seed = seed
+        
+        self.add_bos = add_bos
+
 
     def __getitem__(self, index):
         enc_source, dec_source, dec_target, real_target, ntokens = self._make_source_target(self.src[index], self.tgt[index])
@@ -220,9 +225,9 @@ class LanguagePairSelfDatasetMask(FairseqDataset):
                   on the left if *left_pad_target* is ``True``.
         """
         return collate(
-            samples, pad_idx=self.src_dict.pad(), eos_idx=self.src_dict.eos(),
+            samples, pad_idx=self.src_dict.pad(), eos_idx=self.src_dict.eos(), bos_idx=self.src_dict.bos(), 
             left_pad_source=self.left_pad_source, left_pad_target=self.left_pad_target,
-            input_feeding=self.input_feeding,
+            input_feeding=self.input_feeding, add_bos=self.add_bos
         )
 
     def get_dummy_batch(self, num_tokens, max_positions, src_len=128, tgt_len=128):

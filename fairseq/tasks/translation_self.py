@@ -53,6 +53,8 @@ class TranslationSelfTask(FairseqTask):
                             help='pad the source on the left')
         parser.add_argument('--left-pad-target', default='False', type=str, metavar='BOOL',
                             help='pad the target on the left')
+        parser.add_argument('--add-bos', default='True', type=str, metavar='BOOL',
+                            help='add bos on the begining')
         parser.add_argument('--max-source-positions', default=1024, type=int, metavar='N',
                             help='max number of tokens in the source sequence')
         parser.add_argument('--max-target-positions', default=1024, type=int, metavar='N',
@@ -174,7 +176,7 @@ class TranslationSelfTask(FairseqTask):
             src_dataset, src_dataset.sizes, self.src_dict,
             tgt_dataset, tgt_dataset.sizes, self.tgt_dict,
             left_pad_source=self.args.left_pad_source,
-            left_pad_target=self.args.left_pad_target,
+            left_pad_target=self.args.left_pad_target, add_bos=self.args.add_bos, 
             max_source_positions=self.args.max_source_positions,
             max_target_positions=self.args.max_target_positions,
             shuffle = False,

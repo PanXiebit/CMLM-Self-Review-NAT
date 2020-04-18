@@ -503,14 +503,14 @@ class FairseqEncoderDecoderGanModel(BaseFairseqModel):
         # discriminator
         fake_data = self._get_fake_data(prev_output_tokens, real_target, gen_dec_logits, self.temperature)
         fake_data = Variable(fake_data, requires_grad=False)
-        #fake_data = torch.cat([fake_data.new(fake_data.size(0), 1).fill_(self.tgt_dict.bos()), fake_data], dim=1)
-        fake_data = torch.cat([src_tokens[:, 0].unsqueeze(1), fake_data], dim=1)
         
-        dis_decoder_out = self.d_decoder(fake_data, encoder_out=encoder_out, self_attn=True, **kwargs)
+        shifted_fake_data = fake_data[:, :-1]
+        shifted_fake_data = torch.cat(
+            [shifted_fake_data.new(fake_data.size(0), 1).fill_(self.tgt_dict.bos()), shifted_fake_data], dim=1)
+        
+        dis_decoder_out = self.d_decoder(shifted_fake_data, encoder_out=encoder_out, self_attn=True, **kwargs)
         dis_dec_logits=  self.dis_decoder_head(dis_decoder_out[0])
-        # return gen_dec_logits, dis_dec_logits, encoder_out['predicted_lengths'], fake_data, gen_decoder_out[1]["attn"], dis_decoder_out[1]["attn"]
-        print("fake_data", fake_data.shape, dis_dec_logits.shape)
-        return gen_dec_logits, dis_dec_logits, encoder_out['predicted_lengths'], fake_data, \
+        return gen_dec_logits, dis_dec_logits, encoder_out['predicted_lengths'], fake_data,\
                gen_decoder_out[1], dis_decoder_out[1]
 
 
