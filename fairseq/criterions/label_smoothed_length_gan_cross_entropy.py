@@ -46,17 +46,20 @@ class LabelSmoothedLengthGan_CrossEntropyCriterion(FairseqCriterion):
         3) logging outputs to display while training
         """
         net_output = model(**sample['net_input'])  
-        # 这里的输出是长度为6的 list.
-        # gen_dec_logits, dis_dec_logits, encoder_out['predicted_lengths'], fake_data, gen_decoder_out[1]["attn"], dis_decoder_out[1]["attn"]
+        # 这里的输出是长度为7的 list.
+        # gen_dec_logits, dis_dec_vocab_logits, dis_dec_binary_logits, encoder_out['predicted_lengths'],
+        # fake_data, gen_decoder_out[1]["attn"], dis_decoder_out[1]["attn"]
         # print(net_output[0].shape)
         # print(net_output[1].shape)
         # print(net_output[2].shape)
         # print(net_output[3].shape)
-        loss, nll_loss, length_loss, dis_loss, ntokens = self.compute_loss(model, net_output, sample, reduce=reduce)
+        # print(net_output[4].shape)
+        loss, nll_loss, dis_nll_loss, length_loss, dis_loss, ntokens = self.compute_loss(model, net_output, sample, reduce=reduce)
         sample_size = ntokens  #TODO why not merge ntokens and sample_size? what is the difference?
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
             'nll_loss': utils.item(nll_loss.data) if reduce else nll_loss.data,
+            'dis_nll_loss': utils.item(dis_nll_loss.data) if reduce else dis_nll_loss.data,
             'length_loss': utils.item(length_loss.data) if reduce else length_loss.data,
             'dis_loss': utils.item(dis_loss.data) if reduce else dis_loss.data,
             'ntokens': ntokens,
@@ -73,18 +76,26 @@ class LabelSmoothedLengthGan_CrossEntropyCriterion(FairseqCriterion):
         non_pad_mask = target.ne(self.padding_idx)
         nll_loss = -lprobs.gather(dim=-1, index=target)[non_pad_mask]
         smooth_loss = -lprobs.sum(dim=-1, keepdim=True)[non_pad_mask]
-        
+
         # length loss
-        length_lprobs = net_output[2]   # predicted_lengths [batch, max_target_positions]
+        length_lprobs = net_output[3]   # predicted_lengths [batch, max_target_positions]
         length_target = sample['net_input']['prev_output_tokens'].ne(self.padding_idx).sum(-1).unsqueeze(-1)  # [batch, 1]
         #TODO doesn't work for dynamic length. change to eos-based method.
         length_loss = -length_lprobs.gather(dim=-1, index=length_target)
+
+        # # discriminator vocab loss
+        # dis_dec_vocab_logits = net_output[1]
+        dis_lprobs = utils.log_softmax(net_output[1], dim=-1)
+        dis_lprobs = dis_lprobs.view(-1, dis_lprobs.size(-1))
+        dis_nll_loss = -dis_lprobs.gather(dim=-1, index=target)[non_pad_mask]
+        dis_smooth_loss = -dis_lprobs.sum(dim=-1, keepdim=True)[non_pad_mask]
         
-        # discriminator loss
-        dis_label = net_output[3].eq(
+        # discriminator binary loss
+        # fake_Data = net_output[4], dis_dec_binary_logits = net_output[2]
+        dis_label = net_output[4].eq(
             sample['net_input']['real_target']).type(torch.FloatTensor).to(self.device)  # [batch, tgt_len]
-        dis_dec_logits = net_output[1].view(net_output[3].size(0), -1)
-        dis_loss = self.bce_loss(torch.sigmoid(dis_dec_logits), dis_label)
+        dis_dec_binary_logits = net_output[2].view(net_output[4].size(0), -1)
+        dis_loss = self.bce_loss(torch.sigmoid(dis_dec_binary_logits), dis_label)
         dis_loss = dis_loss.view(-1, 1)[non_pad_mask]  # [batch_size, tgt_len]
 
         
@@ -94,13 +105,15 @@ class LabelSmoothedLengthGan_CrossEntropyCriterion(FairseqCriterion):
             length_loss = length_loss.sum()
             dis_loss = dis_loss.sum()
         eps_i = self.eps / lprobs.size(-1)
-        loss = self.gen_weights * ((1. - self.eps) * nll_loss + eps_i * smooth_loss) + length_loss + self.dis_weights * dis_loss
+        loss = self.gen_weights * ((1. - self.eps) * nll_loss + eps_i * smooth_loss) \
+               + self.gen_weights * ((1. - self.eps) * dis_nll_loss + eps_i * dis_smooth_loss) \
+               + length_loss + self.dis_weights * dis_loss
         ntokens = non_pad_mask.sum().data.item()
         # print(((1. - self.eps) * nll_loss + eps_i * smooth_loss)/ ntokens)
         # print(length_loss / ntokens)
         # print(self.dis_weights * dis_loss / ntokens)
         # print(loss / ntokens / math.log(2))
-        return loss, nll_loss, length_loss, dis_loss, non_pad_mask.sum().data.item()
+        return loss, nll_loss, dis_nll_loss, length_loss, dis_loss, non_pad_mask.sum().data.item()
 
     @staticmethod
     def aggregate_logging_outputs(logging_outputs):
@@ -111,6 +124,7 @@ class LabelSmoothedLengthGan_CrossEntropyCriterion(FairseqCriterion):
         return {
             'loss': sum(log.get('loss', 0) for log in logging_outputs) / sample_size / math.log(2),
             'nll_loss': sum(log.get('nll_loss', 0) for log in logging_outputs) / ntokens / math.log(2),
+            'dis_nll_loss': sum(log.get('dis_nll_loss', 0) for log in logging_outputs) / ntokens / math.log(2),
             'length_loss': sum(log.get('length_loss', 0) for log in logging_outputs) / nsentences / math.log(2),
             'dis_loss': sum(log.get('dis_loss', 0) for log in logging_outputs) / ntokens / math.log(2), 
             'ntokens': ntokens,

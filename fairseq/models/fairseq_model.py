@@ -509,8 +509,9 @@ class FairseqEncoderDecoderGanModel(BaseFairseqModel):
             [shifted_fake_data.new(fake_data.size(0), 1).fill_(self.tgt_dict.bos()), shifted_fake_data], dim=1)
         
         dis_decoder_out = self.d_decoder(shifted_fake_data, encoder_out=encoder_out, self_attn=True, **kwargs)
-        dis_dec_logits=  self.dis_decoder_head(dis_decoder_out[0])
-        return gen_dec_logits, dis_dec_logits, encoder_out['predicted_lengths'], fake_data,\
+        dis_dec_vocab_logits = F.linear(dis_decoder_out[0], self.decoder_embed_tokens.weight)
+        dis_dec_binary_logits =  self.dis_decoder_head(dis_decoder_out[0])
+        return gen_dec_logits, dis_dec_vocab_logits, dis_dec_binary_logits, encoder_out['predicted_lengths'], fake_data,\
                gen_decoder_out[1], dis_decoder_out[1]
 
 
