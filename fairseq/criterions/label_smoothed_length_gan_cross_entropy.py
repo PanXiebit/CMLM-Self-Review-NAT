@@ -54,7 +54,8 @@ class LabelSmoothedLengthGan_CrossEntropyCriterion(FairseqCriterion):
         # print(net_output[2].shape)
         # print(net_output[3].shape)
         # print(net_output[4].shape)
-        loss, nll_loss, dis_nll_loss, length_loss, dis_loss, ntokens = self.compute_loss(model, net_output, sample, reduce=reduce)
+        loss, nll_loss, dis_nll_loss, length_loss, dis_loss, ntokens, unmask_ntokens, \
+            = self.compute_loss(model, net_output, sample, reduce=reduce)
         sample_size = ntokens  #TODO why not merge ntokens and sample_size? what is the difference?
         logging_output = {
             'loss': utils.item(loss.data) if reduce else loss.data,
@@ -65,6 +66,7 @@ class LabelSmoothedLengthGan_CrossEntropyCriterion(FairseqCriterion):
             'ntokens': ntokens,
             'nsentences': sample['target'].size(0),
             'sample_size': sample_size,
+            'unmask_ntokens' : unmask_ntokens,
         }
         return loss, sample_size, logging_output
 
@@ -87,8 +89,10 @@ class LabelSmoothedLengthGan_CrossEntropyCriterion(FairseqCriterion):
         # dis_dec_vocab_logits = net_output[1]
         dis_lprobs = utils.log_softmax(net_output[1], dim=-1)
         dis_lprobs = dis_lprobs.view(-1, dis_lprobs.size(-1))
-        dis_nll_loss = -dis_lprobs.gather(dim=-1, index=target)[non_pad_mask]
-        dis_smooth_loss = -dis_lprobs.sum(dim=-1, keepdim=True)[non_pad_mask]
+        real_target = sample["net_input"]["real_target"].view(-1, 1)
+        non_pad_mask_2 = real_target.ne(self.padding_idx) ^ non_pad_mask
+        dis_nll_loss = -dis_lprobs.gather(dim=-1, index=real_target)[non_pad_mask_2]
+        dis_smooth_loss = -dis_lprobs.sum(dim=-1, keepdim=True)[non_pad_mask_2]
         
         # discriminator binary loss
         # fake_Data = net_output[4], dis_dec_binary_logits = net_output[2]
@@ -102,31 +106,31 @@ class LabelSmoothedLengthGan_CrossEntropyCriterion(FairseqCriterion):
         if reduce:
             nll_loss = nll_loss.sum()
             smooth_loss = smooth_loss.sum()
+            dis_nll_loss = dis_nll_loss.sum()
+            dis_smooth_loss = dis_smooth_loss.sum()
             length_loss = length_loss.sum()
             dis_loss = dis_loss.sum()
         eps_i = self.eps / lprobs.size(-1)
-        loss = self.gen_weights * ((1. - self.eps) * nll_loss + eps_i * smooth_loss) \
-               + self.gen_weights * ((1. - self.eps) * dis_nll_loss + eps_i * dis_smooth_loss) \
-               + length_loss + self.dis_weights * dis_loss
         ntokens = non_pad_mask.sum().data.item()
-        # print(((1. - self.eps) * nll_loss + eps_i * smooth_loss)/ ntokens)
-        # print(length_loss / ntokens)
-        # print(self.dis_weights * dis_loss / ntokens)
-        # print(loss / ntokens / math.log(2))
-        return loss, nll_loss, dis_nll_loss, length_loss, dis_loss, non_pad_mask.sum().data.item()
+        unmask_ntokens = non_pad_mask_2.sum().data.item()
+        loss = self.gen_weights * ((1. - self.eps) * nll_loss + eps_i * smooth_loss) / ntokens  \
+               + self.gen_weights * ((1. - self.eps) * dis_nll_loss + eps_i * dis_smooth_loss) / unmask_ntokens \
+               + length_loss / ntokens + self.dis_weights * dis_loss / ntokens
+        return loss, nll_loss, dis_nll_loss, length_loss, dis_loss, ntokens, unmask_ntokens
 
     @staticmethod
     def aggregate_logging_outputs(logging_outputs):
         """Aggregate logging outputs from data parallel training."""
         ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
+        unmask_ntokens = sum(log.get('unmask_ntokens', 0) for log in logging_outputs)
         nsentences = sum(log.get('nsentences', 0) for log in logging_outputs)
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
         return {
-            'loss': sum(log.get('loss', 0) for log in logging_outputs) / sample_size / math.log(2),
+            'loss': sum(log.get('loss', 0) for log in logging_outputs) / math.log(2),
             'nll_loss': sum(log.get('nll_loss', 0) for log in logging_outputs) / ntokens / math.log(2),
-            'dis_nll_loss': sum(log.get('dis_nll_loss', 0) for log in logging_outputs) / ntokens / math.log(2),
+            'dis_nll_loss': sum(log.get('dis_nll_loss', 0) for log in logging_outputs) / unmask_ntokens / math.log(2),
             'length_loss': sum(log.get('length_loss', 0) for log in logging_outputs) / nsentences / math.log(2),
-            'dis_loss': sum(log.get('dis_loss', 0) for log in logging_outputs) / ntokens / math.log(2), 
+            'dis_loss': sum(log.get('dis_loss', 0) for log in logging_outputs) / ntokens / math.log(2),
             'ntokens': ntokens,
             'nsentences': nsentences,
             'sample_size': sample_size,
