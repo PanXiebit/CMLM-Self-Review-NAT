@@ -19,8 +19,6 @@ from fairseq.meters import TimeMeter
 from fairseq.strategies.strategy_utils import duplicate_encoder_out
 
 
-
-
 def main(args):
     assert args.path is not None, '--path required for generation!'
     assert not args.sampling or args.nbest == args.beam, \

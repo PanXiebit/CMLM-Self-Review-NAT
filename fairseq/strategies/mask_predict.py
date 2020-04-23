@@ -38,9 +38,13 @@ class MaskPredict(DecodingStrategy):
             assign_single_value_long(tgt_tokens, mask_ind, tgt_dict.mask())
             assign_single_value_byte(tgt_tokens, pad_mask, tgt_dict.pad())
 
+            shift_tgt_tokens = tgt_tokens[:, :-1]
+            shift_tgt_tokens = torch.cat(
+                [tgt_tokens.new(shift_tgt_tokens.size(0), 1).fill_(tgt_dict.bos()), shift_tgt_tokens],dim=1)
+
             #print("Step: ", counter+1)
             #print("Masking: ", convert_tokens(tgt_dict, tgt_tokens[0]))
-            gen_decoder_out = model.g_decoder(tgt_tokens, encoder_out)
+            gen_decoder_out = model.g_decoder(shift_tgt_tokens, encoder_out, self_attn=False)
             gen_dec_logits = F.linear(gen_decoder_out[0], model.decoder_embed_tokens.weight)
             new_tgt_tokens, new_token_probs, all_token_probs = generate_step_with_prob(gen_dec_logits)
             
@@ -55,7 +59,7 @@ class MaskPredict(DecodingStrategy):
         return tgt_tokens, lprobs
     
     def generate_non_autoregressive(self, model, encoder_out, tgt_tokens):
-        gen_decoder_out = model.g_decoder(tgt_tokens, encoder_out)
+        gen_decoder_out = model.g_decoder(tgt_tokens, encoder_out, self_attn=False)
         # x, {'attn': attn, 'inner_states': inner_states, 'predicted_lengths': encoder_out['predicted_lengths']} 
         # print(decoder_out[0].shape)  # [batch, max_len, decoder_emb_dim]
         

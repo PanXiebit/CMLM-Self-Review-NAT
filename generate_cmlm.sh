@@ -1,6 +1,5 @@
-output_dir=output
 src=en
-tgt=de
+tgt=ro
 model_path=output
 model_dir=${model_path}/my_maskPredict_${src}_${tgt}
 

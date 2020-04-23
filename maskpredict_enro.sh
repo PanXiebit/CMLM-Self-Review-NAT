@@ -53,7 +53,7 @@ python train.py \
    --adam-betas '(0.9, 0.999)' \
    --adam-eps 1e-6 \
    --task translation_self \
-   --max-tokens 1000 \
+   --max-tokens 6144 \
    --weight-decay 0.01 \
    --dropout 0.3 \
    --encoder-layers 6 \
@@ -65,5 +65,5 @@ python train.py \
    --max-update 300000 \
    --seed 0 \
    --save-dir ${model_dir} \
-   --dis_weights 1.0\
-   --restore-file checkpoint_haha.pt #> train-log 2>&1 &
+   --dis_weights 1.0 \
+   --restore-file checkpoint_last.pt #> train-log 2>&1 &
