@@ -17,6 +17,8 @@ class MaskPredict(DecodingStrategy):
     def __init__(self, args):
         super().__init__()
         self.iterations = args.decoding_iterations
+        self.use_at = args.use_at
+        self.use_at_iter = args.use_at_iter
     
     def generate(self, model, encoder_out, tgt_tokens, tgt_dict):
         bsz, seq_len = tgt_tokens.size()
@@ -44,7 +46,10 @@ class MaskPredict(DecodingStrategy):
 
             #print("Step: ", counter+1)
             #print("Masking: ", convert_tokens(tgt_dict, tgt_tokens[0]))
-            gen_decoder_out = model.g_decoder(shift_tgt_tokens, encoder_out, self_attn=False)
+            if self.use_at and counter > self.use_at_iter:
+                gen_decoder_out = model.g_decoder(shift_tgt_tokens, encoder_out, self_attn=True)
+            else:
+                gen_decoder_out = model.g_decoder(shift_tgt_tokens, encoder_out, self_attn=False)
             gen_dec_logits = F.linear(gen_decoder_out[0], model.decoder_embed_tokens.weight)
             new_tgt_tokens, new_token_probs, all_token_probs = generate_step_with_prob(gen_dec_logits)
             

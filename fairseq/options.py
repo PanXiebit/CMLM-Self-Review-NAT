@@ -447,7 +447,12 @@ def add_generation_args(parser):
     group.add_argument('--decoding-strategy', default='left_to_right', choices=STRATEGY_REGISTRY.keys())
     group.add_argument('--gold-target-len', action='store_true', help='use gold target length')
     group.add_argument('--dehyphenate', action='store_true', help='turn hyphens into independent tokens')
-    parser.add_argument('--decoding-iterations', default=None, type=int, metavar='N', help='number of decoding iterations in mask-predict')
+    parser.add_argument('--decoding-iterations', default=None, type=int, metavar='N',
+                        help='number of decoding iterations in mask-predict')
+    parser.add_argument('--use-at', default=False, type=bool,
+                        help='weather use autoregressive decoding in mask-predict')
+    parser.add_argument('--use-at-iter', default=10, type=int,
+                        help='The iteration to start using autoregressive in mask-predict')
     group.add_argument('--length-beam', default=5, type=int, metavar='N',
                        help='length beam size')
     #### other generation options ####
