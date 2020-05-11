@@ -406,7 +406,7 @@ def add_checkpoint_args(parser):
 
 def add_common_eval_args(group):
     # fmt: off
-    group.add_argument('--path', metavar='FILE', default="output/my_maskPredict_en_ro/checkpoint37.pt", 
+    group.add_argument('--path', metavar='FILE', default="output/my_maskPredict_en_ro/checkpoint_average.pt", 
                        help='path(s) to model file(s), colon separated')
 #     group.add_argument('--remove-bpe', nargs='?', const='@@ ', default=None,
 #                        help='remove BPE tokens before scoring (can be set to sentencepiece)')

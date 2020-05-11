@@ -160,6 +160,7 @@ class TranslationSelfTask(FairseqTask):
             src_dataset = ConcatDataset(src_datasets, sample_ratios)
             tgt_dataset = ConcatDataset(tgt_datasets, sample_ratios)
         
+
         if split == "train":
             train = True
             seed = None
