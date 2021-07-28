@@ -96,7 +96,3 @@ python generate_cmlm.py \
     --decoding-strategy mask_predict
 ```
 
-# License
-MASK-PREDICT is CC-BY-NC 4.0.
-The license applies to the pre-trained models as well.
-
