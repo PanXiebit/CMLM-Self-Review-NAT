@@ -295,7 +295,7 @@ class SelfTransformerDecoder(FairseqIncrementalDecoder):
         if self.normalize:
             self.layer_norm = BertLayerNorm(self.embed_dim)
 
-    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None):
+    def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None, self_attn=False):
         """
         Args:
             prev_output_tokens (LongTensor): previous decoder outputs of shape
@@ -314,7 +314,15 @@ class SelfTransformerDecoder(FairseqIncrementalDecoder):
         incremental_state=None
         
         decoder_padding_mask = prev_output_tokens.eq(self.padding_idx)
-
+        if self_attn:
+            dim = prev_output_tokens.size(1)
+            self_attn_mask = torch.triu(
+                    utils.fill_with_neg_inf(prev_output_tokens.new(dim, dim)), 1
+                )
+            self_attn_mask = self_attn_mask.to(prev_output_tokens)[:dim, :dim]
+        else:
+            self_attn_mask = None
+        
         # embed positions
         positions = self.embed_positions(
             prev_output_tokens,
@@ -340,8 +348,10 @@ class SelfTransformerDecoder(FairseqIncrementalDecoder):
                 encoder_out['encoder_out'] if encoder_out is not None else None,
                 encoder_out['encoder_padding_mask'] if encoder_out is not None else None,
                 decoder_padding_mask,
+                self_attn_mask=self_attn_mask
             )
             inner_states.append(x)
+
         if self.normalize:
             x = self.layer_norm(x)
         # T x B x C -> B x T x C
@@ -427,7 +437,7 @@ class TransformerDecoderLayer(nn.Module):
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
 
-    def forward(self, x, encoder_out, encoder_padding_mask, decoder_padding_mask):
+    def forward(self, x, encoder_out, encoder_padding_mask, decoder_padding_mask, self_attn_mask=None):
         """
         Args:
             x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
@@ -438,7 +448,7 @@ class TransformerDecoderLayer(nn.Module):
         """
         residual = x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, before=True)
-        x, _ = self.self_attn(query=x, key=x, value=x, key_padding_mask=decoder_padding_mask)
+        x, _ = self.self_attn(query=x, key=x, value=x, key_padding_mask=decoder_padding_mask, attn_mask=self_attn_mask)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = residual + x
         x = self.maybe_layer_norm(self.self_attn_layer_norm, x, after=True)

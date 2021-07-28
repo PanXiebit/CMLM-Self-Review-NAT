@@ -12,7 +12,7 @@ except ImportError:
 import contextlib
 import itertools
 import os
-
+import torch
 import numpy as np
 
 
@@ -26,9 +26,13 @@ def infer_language_pair(path):
     return src, dst
 
 
-def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_beginning=False):
+def collate_tokens(values, pad_idx, eos_idx=None, bos_idx=None, left_pad=False, move_eos_to_beginning=False, 
+                   add_bos=True, is_decoder_src=False):
     """Convert a list of 1d tensors into a padded 2d tensor."""
-    size = max(v.size(0) for v in values)
+    if add_bos and not is_decoder_src:
+        size = max(v.size(0) for v in values) + 1
+    else:
+        size = max(v.size(0) for v in values)
     res = values[0].new(len(values), size).fill_(pad_idx)
 
     def copy_tensor(src, dst):
@@ -41,6 +45,10 @@ def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_be
             dst.copy_(src)
 
     for i, v in enumerate(values):
+        if is_decoder_src:
+            v = v[:-1]  # 如果加上 bos，作为decoder的输入，那么去掉 eos.
+        if add_bos:
+            v = torch.cat([v.new(1).fill_(bos_idx), v], dim=0)
         copy_tensor(v, res[i][size - len(v):] if left_pad else res[i][:len(v)])
     return res
 

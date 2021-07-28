@@ -39,7 +39,10 @@ class TranslationSelfTask(FairseqTask):
     @staticmethod
     def add_args(parser):
         """Add task-specific arguments to the parser."""
-        parser.add_argument('data', nargs='+', help='path(s) to data directorie(s)')
+        #parser.add_argument('data', nargs='+', help='path(s) to data directorie(s)')
+        parser.add_argument('--data', default="output/data-bin", type=str,
+                            help='path(s) to data directorie(s)')
+
         parser.add_argument('-s', '--source-lang', default=None, metavar='SRC',
                             help='source language')
         parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
@@ -50,6 +53,8 @@ class TranslationSelfTask(FairseqTask):
                             help='pad the source on the left')
         parser.add_argument('--left-pad-target', default='False', type=str, metavar='BOOL',
                             help='pad the target on the left')
+        parser.add_argument('--add-bos', default='True', type=str, metavar='BOOL',
+                            help='add bos on the begining')
         parser.add_argument('--max-source-positions', default=1024, type=int, metavar='N',
                             help='max number of tokens in the source sequence')
         parser.add_argument('--max-target-positions', default=1024, type=int, metavar='N',
@@ -79,13 +84,13 @@ class TranslationSelfTask(FairseqTask):
 
         # find language pair automatically
         if args.source_lang is None or args.target_lang is None:
-            args.source_lang, args.target_lang = data_utils.infer_language_pair(args.data[0])
+            args.source_lang, args.target_lang = data_utils.infer_language_pair(args.data)
         if args.source_lang is None or args.target_lang is None:
             raise Exception('Could not infer language pair, please provide it explicitly')
 
         # load dictionaries
-        src_dict = Dictionary.load(os.path.join(args.data[0], 'dict.{}.txt'.format(args.source_lang)))
-        tgt_dict = Dictionary.load(os.path.join(args.data[0], 'dict.{}.txt'.format(args.target_lang)))
+        src_dict = Dictionary.load(os.path.join(args.data, 'dict.{}.txt'.format(args.source_lang)))
+        tgt_dict = Dictionary.load(os.path.join(args.data, 'dict.{}.txt'.format(args.target_lang)))
         assert src_dict.pad() == tgt_dict.pad()
         assert src_dict.eos() == tgt_dict.eos()
         assert src_dict.unk() == tgt_dict.unk()
@@ -119,7 +124,7 @@ class TranslationSelfTask(FairseqTask):
         src_datasets = []
         tgt_datasets = []
 
-        data_paths = self.args.data
+        data_paths = [self.args.data]
 
         for dk, data_path in enumerate(data_paths):
             for k in itertools.count():
@@ -155,6 +160,7 @@ class TranslationSelfTask(FairseqTask):
             src_dataset = ConcatDataset(src_datasets, sample_ratios)
             tgt_dataset = ConcatDataset(tgt_datasets, sample_ratios)
         
+
         if split == "train":
             train = True
             seed = None
@@ -171,7 +177,7 @@ class TranslationSelfTask(FairseqTask):
             src_dataset, src_dataset.sizes, self.src_dict,
             tgt_dataset, tgt_dataset.sizes, self.tgt_dict,
             left_pad_source=self.args.left_pad_source,
-            left_pad_target=self.args.left_pad_target,
+            left_pad_target=self.args.left_pad_target, add_bos=self.args.add_bos, 
             max_source_positions=self.args.max_source_positions,
             max_target_positions=self.args.max_target_positions,
             shuffle = False,

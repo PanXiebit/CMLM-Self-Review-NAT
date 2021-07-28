@@ -34,13 +34,15 @@ model_path=output
 #     --srcdict ${model_path}/my_maskPredict_${src}_${tgt}/dict.${src}.txt \
 #     --tgtdict ${model_path}/my_maskPredict_${src}_${tgt}/dict.${tgt}.txt
     
-# train model
+# # train model
 model_dir=${model_path}/my_maskPredict_${src}_${tgt}
 
-python train.py ${output_dir}/data-bin \
+python train.py \
+   --data "output/data-bin" \
    --arch bert_transformer_seq2seq_gan \
    --share-all-embeddings \
-   --criterion label_smoothed_length_gan_2_cross_entropy \
+   --sharing_gen_dis \
+   --criterion label_smoothed_length_gan_cross_entropy \
    --label-smoothing 0.1 \
    --lr 5e-4 \
    --warmup-init-lr 1e-7 \
@@ -51,7 +53,7 @@ python train.py ${output_dir}/data-bin \
    --adam-betas '(0.9, 0.999)' \
    --adam-eps 1e-6 \
    --task translation_self \
-   --max-tokens 4000 \
+   --max-tokens 6144 \
    --weight-decay 0.01 \
    --dropout 0.3 \
    --encoder-layers 6 \
@@ -63,5 +65,5 @@ python train.py ${output_dir}/data-bin \
    --max-update 300000 \
    --seed 0 \
    --save-dir ${model_dir} \
-   --dis_weights 5.0\
-   --restore-file checkpoint_haha.pt #> train-log 2>&1 &
+   --dis_weights 1.0 \
+   --restore-file checkpoint_last.pt #> train-log 2>&1 &

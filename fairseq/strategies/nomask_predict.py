@@ -11,14 +11,14 @@ from . import DecodingStrategy, register_strategy
 from .strategy_utils import generate_step_with_prob, assign_single_value_long, assign_single_value_byte, assign_multi_value_long, convert_tokens
 
 
-@register_strategy('mask_predict')
-class MaskPredict(DecodingStrategy):
+@register_strategy('nomask_predict')
+class NoMaskPredict(DecodingStrategy):
     
     def __init__(self, args):
         super().__init__()
         self.iterations = args.decoding_iterations
-        self.use_at = args.use_at
-        self.use_at_iter = args.use_at_iter
+        # self.use_at = args.use_at
+        # self.use_at_iter = args.use_at_iter
     
     def generate(self, model, encoder_out, tgt_tokens, tgt_dict):
         bsz, seq_len = tgt_tokens.size()
@@ -36,7 +36,8 @@ class MaskPredict(DecodingStrategy):
             num_mask = (seq_lens.float() * (1.0 - (counter / iterations))).long()
 
             assign_single_value_byte(token_probs, pad_mask, 1.0)
-            mask_ind = self.select_worst(token_probs, num_mask)
+            # mask_ind = self.select_worst(token_probs, num_mask)
+            mask_ind = self.select_repeat(tgt_tokens, token_probs, num_mask)
             assign_single_value_long(tgt_tokens, mask_ind, tgt_dict.mask())
             assign_single_value_byte(tgt_tokens, pad_mask, tgt_dict.pad())
 
@@ -46,10 +47,10 @@ class MaskPredict(DecodingStrategy):
 
             #print("Step: ", counter+1)
             #print("Masking: ", convert_tokens(tgt_dict, tgt_tokens[0]))
-            if self.use_at and counter > self.use_at_iter:
-                gen_decoder_out = model.g_decoder(shift_tgt_tokens, encoder_out, self_attn=True)
-            else:
-                gen_decoder_out = model.g_decoder(shift_tgt_tokens, encoder_out, self_attn=False)
+            # if self.use_at and counter > self.use_at_iter:
+            #     gen_decoder_out = model.g_decoder(shift_tgt_tokens, encoder_out, self_attn=True)
+            # else:
+            gen_decoder_out = model.g_decoder(shift_tgt_tokens, encoder_out, self_attn=False)
             gen_dec_logits = F.linear(gen_decoder_out[0], model.decoder_embed_tokens.weight)
             new_tgt_tokens, new_token_probs, all_token_probs = generate_step_with_prob(gen_dec_logits)
             
@@ -57,6 +58,7 @@ class MaskPredict(DecodingStrategy):
             assign_single_value_byte(token_probs, pad_mask, 1.0)
             
             assign_multi_value_long(tgt_tokens, mask_ind, new_tgt_tokens)
+            # tgt_tokens = new_tgt_tokens
             assign_single_value_byte(tgt_tokens, pad_mask, tgt_dict.pad())
             #print("Prediction: ", convert_tokens(tgt_dict, tgt_tokens[0]))
         
@@ -79,4 +81,20 @@ class MaskPredict(DecodingStrategy):
         masks = [token_probs[batch, :].topk(max(1, num_mask[batch]), largest=False, sorted=False)[1] for batch in range(bsz)]
         masks = [torch.cat([mask, mask.new(seq_len - mask.size(0)).fill_(mask[0])], dim=0) for mask in masks]
         return torch.stack(masks, dim=0)
+
+    def select_repeat(self, tgt_tokens, token_probs, num_mask):
+        bsz, seq_len = tgt_tokens.size()
+        # masks = [token_probs[batch, :].topk(max(1, num_mask[batch]), largest=False, sorted=False)[1] for batch in range(bsz)]
+        masks = []
+        for batch in range(bsz):
+            mask_pos = []
+            for pos in range(1, seq_len):
+                if tgt_tokens[batch, pos] == tgt_tokens[batch, pos - 1]:
+                    mask_pos.append(pos)
+                    mask_pos = torch.LongTensor(mask_pos).type_as(tgt_tokens)
+                if len(mask_pos) == 0:
+                    mask_pos = token_probs[batch, :].topk(max(1, num_mask[batch]), largest=False, sorted=False)[1]
+            masks.append(mask_pos)
+        masks = [torch.cat([mask, mask.new(seq_len - mask.size(0)).fill_(mask[0])], dim=0) for mask in masks]
+        return masks
 

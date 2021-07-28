@@ -1,19 +1,17 @@
+output_dir=output
 src=en
 tgt=ro
 model_path=output
 model_dir=${model_path}/my_maskPredict_${src}_${tgt}
 
 
-
-python generate_cmlm.py \
-    --data output/data-bin \
-    --path ${model_dir}/checkpoint_hah.pt \
+python visualize.py  \
+    --path ${model_dir}/checkpoint37.pt \
     --task translation_self \
-    --remove-bpe True \
-    --max-sentences 20 \
-    --decoding-iterations 1 \
-    --decoding-strategy mask_predict
-
+    --remove-bpe \
+    --max-sentences 1
+    
+    
 # mkdir generate_fuse_log
 # for i in {15..19}
 # do

@@ -108,8 +108,8 @@ class LabelSmoothedLengthGan_2_CrossEntropyCriterion(FairseqCriterion):
         neg_loss = -torch.log(1- torch.sigmoid(net_output[1].squeeze())) * neg_label.to(self.device)
         dis_loss = (pos_loss + neg_loss).view(-1, 1)[non_pad_mask]
         
-        print("\n dis_label", pos_label.view(-1, 1)[non_pad_mask].sum())
-        print("\ndis_loss\n", dis_loss.sum(), pos_loss.view(-1, 1)[non_pad_mask].sum())
+        #print("\n dis_label", pos_label.view(-1, 1)[non_pad_mask].sum())
+        #print("\ndis_loss\n", dis_loss.sum(), pos_loss.view(-1, 1)[non_pad_mask].sum())
         
         
         if reduce:
