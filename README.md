@@ -1,4 +1,4 @@
-# Self-Review NAT
+# CMLM-Self-Review NAT
 
 Code for our COLING 2020 paper, "[Infusing Sequential Information into Conditional Masked Translation Model with Self-Review Mechanism](https://aclanthology.org/2020.coling-main.2.pdf)". Please cite our paper if you find this repository helpful in your research:
 
